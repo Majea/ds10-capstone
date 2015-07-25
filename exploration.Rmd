@@ -1,0 +1,127 @@
+---
+title: "Data set exploration"
+author: "Maxime Jeanmart"
+date: "20 juillet 2015"
+output: html_document
+---
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+source("swiftkey.R")
+library(ggplot2)
+```
+
+# Executive summary
+
+The project goal is to propose to an application user the 3 words that have the most chance of coming after the one he just typed. This prediction is based on a list of documents, called corpus, that are supposed to be representative of a specific language. In this document, we'll explore and prepare the data set before processing it.
+
+# Corpus exploration
+
+After the original package is unzipped, we have four data sets available in four directories, one for each language to support. The directories are named according to the locale: de_DE for German, en_US for American English, fi_FI for Finnish and ru_RU for Russian. We have 3 files available for each language. The files are named according to the source of data: blogs, newspapers or Twitter (2).
+
+
+```{r echo=FALSE}
+lines_en <- countLinesSK("en_US")
+lines_de <- countLinesSK("de_DE")
+lines_fi <- countLinesSK("fi_FI")
+lines_ru <- countLinesSK("ru_RU")
+```
+```{r echo=FALSE}
+size_en <- fileSizeSK("en_US")
+size_de <- fileSizeSK("de_DE")
+size_fi <- fileSizeSK("fi_FI")
+size_ru <- fileSizeSK("ru_RU")
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#wc_en <- countWordsSimple("en_US")
+wc_en <- list(blogs=37334641, news=2643986, twitter=30373906)
+#wc_de <- countWordsSimple("de_DE")
+wc_de <- list(blogs=6191461, news=13219530, twitter=11803694)
+#wc_fi <- countWordsSimple("fi_FI")
+wc_fi <- list(blogs=12732199, news=10446086, twitter=3152831)
+#wc_ru <- countWordsSimple("ru_RU")
+wc_ru <- list(blogs=9455535, news=9202756, twitter=9289235)
+```
+
+Here is the size of all files in the corpus, in bytes, then the number of lines per file and finally the number of words in each file. Please notice this doesn't give the number of distinct words yet.
+
+| FILE SIZE (BYTES)  | English          | German           | Finnish          | Russian          |
+|-------------|:----------------:|-----------------:|-----------------:|-----------------:|
+| Blogs       | `r format(size_en$blogs)`   | `r format(size_de$blogs)`   | `r format(size_fi$blogs)`   | `r format(size_ru$blogs)`   |
+| Newspapers  | `r format(size_en$news)`    | `r format(size_de$news)`    | `r format(size_fi$news)`    | `r format(size_ru$news)`    |
+| Twitter     | `r format(size_en$twitter)` | `r format(size_de$twitter)` | `r format(size_fi$twitter)` | `r format(size_ru$twitter)` | 
+
+| LINES COUNT | English          | German           | Finnish          | Russian          |
+|-------------|:----------------:|-----------------:|-----------------:|-----------------:|
+| Blogs       | `r lines_en$blogs`   | `r lines_de$blogs`   | `r lines_fi$blogs`   | `r lines_ru$blogs`   |
+| Newspapers  | `r lines_en$news`    | `r lines_de$news`    | `r lines_fi$news`    | `r lines_ru$news`    |
+| Twitter     | `r lines_en$twitter` | `r lines_de$twitter` | `r lines_fi$twitter` | `r lines_ru$twitter` | 
+
+| WORD COUNT  | English          | German           | Finnish          | Russian          |
+|-------------|:----------------:|-----------------:|-----------------:|-----------------:|
+| Blogs       | `r format(wc_en$blogs)`   | `r format(wc_de$blogs)`   | `r format(wc_fi$blogs)`   | `r format(wc_ru$blogs)`   |
+| Newspapers  | `r format(wc_en$news)`    | `r format(wc_de$news)`    | `r format(wc_fi$news)`    | `r format(wc_ru$news)`    |
+| Twitter     | `r format(wc_en$twitter)` | `r format(wc_de$twitter)` | `r format(wc_fi$twitter)` | `r format(wc_ru$twitter)` | 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# this is too big to be computed live on the report
+#wordMapEn <- wordMap("en_US")
+#wordSizeEn <- list(blogs=length(wordMapEn$blogs$hash),
+#                   news=length(wordMapEn$news$hash),
+#                   news=length(wordMapEn$twitter$hash)
+#                   )
+#mergeEn <- hashMerge(wordSizeEn)
+#totalDiffWords <- length(mergeEn)
+```
+
+```{r echo=FALSE}
+# precomputed values on final data set
+
+# distinct words count (not filtered, not cleaned) => w variable stored in "raw_stats_final_set.RData""
+diff_wc_en <- data.frame(Source = factor(c("blogs", "news", "twitter"), levels=c("blogs", "news", "twitter")), count_distinct=c(1103677, 197857, 1290203))
+
+# this is after merging the 3 hash maps of words
+totalDiffWords <- 2123961
+
+```
+
+In the following chart, we see the number of different words for each of the 3 files in the English data set before data set cleaning and filtering.
+
+```{r echo=FALSE}
+ggplot(data=diff_wc_en, aes(x=Source, y=count_distinct)) + geom_bar(stat="identity", fill="#FF9999", colour="black") + 
+  geom_text(aes(x=Source, y=count_distinct/2, ymax=count_distinct, label=count_distinct)) + 
+  xlab("Source file") + ylab("Count of distinct words") +
+  ggtitle("Counting of distinct words for the 3 English files before cleaning")
+```
+
+If we merge the 3 sets of words together, we have `r format(totalDiffWords)` different words found. Does that mean that the 3 sets contain so many different words? As we'll see later, the situation clarifies after we clean the data set.
+
+_Important remark_: We'll focus on the English language data set for the rest of the document but the strategy is similar for the 3 other languages. Because of the large size of the corpus and the limited time we have, the following exploration was performed using a small part of each of the English files. 10% of the lines were kept, taken randomly.
+
+# Data source filtering
+
+In order to achieve our goal, we first have to define what is a word and what influences the next word to come. In the prvious counting, we considered only white spaces and new lines as words separators, whithout any further transformations. Here is a sample of what we get: "you", "you).", "you?", "wow!", "tonight!!", "school...wow!", "\$\$\$", ":-)", "arrrgh", "recieved" or "$1.200.". In those so called "words", we have prices, misspellings, emoticons, onomatopoeia and punctuation. Clearly we have to better define what is a word and what is not. This can involve ignoring some complete chains of characters or just stripping some characters from them. For example, we want to convert "you)." into "you" and not ignore the entry completely.
+
+We need to think about how to deal with the following special cases in the text: misspelling, hyphenation, abbreviations, capitalization, punctuation and other special characters, white spaces and numbers. We can also think about how to deal with some special words: profanity, very common words, synonyms, onomatopoeia and names (places, people...). Finally, the grammar and position of the word in the sentence can also influence the list of words that come next.
+
+## Capitalization
+
+There are 2 cases of capital letters to handle. The first case is when the word always takes one or more capital letters, like for people or location names for instance. The second case is when the word only sometimes takes a capital letter, like the first letter of a sentence is English. The counting of words should not be affected by the fact that a word sometimes takes a capital letter or not. This is mostly a matter of grammar and context. So the idea is to ignore capitalization of words in order to get the right number of occurrences in the language, whatever the context.
+
+Ideally, we should identify words that always take 1 or more capital letters so that the predictor shows it with correct case. This could be done later as an improvement but it's not done here. 
+
+Here are the number of different words detected for each language before filtering, but with only lower case characters:
+
+```{r echo=FALSE}
+#resultNoFilter <- preprocessAll(verbose=FALSE)
+#print(paste("English:", resultNoFilter$en$freq))
+#print(paste("German:", resultNoFilter$de$freq))
+#print(paste("Finnish:", resultNoFilter$fi$freq))
+#print(paste("Russian:", resultNoFilter$ru$freq))
+#enNoFilter <- wordsEn(resultNoFilter)
+#totalNoFilter <- resultNoFilter$en$freq + resultNoFilter$de$freq + resultNoFilter$fi$freq + resultNoFilter$ru$freq
+#print(paste("Total:", totalNoFilter))
+
+#resultNoFilter <- preprocess(folder, "en_US", filters, verbose)
+#print(paste("English:", resultNoFilter$freq))
+```
+
