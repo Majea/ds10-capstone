@@ -2,7 +2,8 @@
 title: "Capstone project data exploration"
 author: "Maxime Jeanmart"
 date: "21 juillet 2015"
-output: html_document
+output:
+  html_document: default
 ---
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -173,21 +174,13 @@ From those decisions, we'll ban bad words from suggestions and won't suggest wor
 
 ## Other topics
 
-### Stemming
+__Stemming__: Stemming is a technique with which we handle the roots of words instead of the words themselves. For instance, "cities" and "city" would both be considered as "citi" when stemming is used. The advantage is that it increases the coverage of the corpus since some words that might not be in the corpus would be considered through their stem. However, it would then be more difficult to suggest the right word afterwords. If we encountered "city" and not "cities", it would be harder to find out that the plural or singular form of the word is the best suggestion since what is stored is simply "citi". We have to take grammar into account. As a conclusion, stemming will only be considered if we get enough time.
 
-Stemming is a technique with which we handle the roots of words instead of the words themselves. For instance, "cities" and "city" would both be considered as "citi" when stemming is used. The advantage is that it increases the coverage of the corpus since some words that might not be in the corpus would be considered through their stem. However, it would then be more difficult to suggest the right word afterwords. If we encountered "city" and not "cities", it would be harder to find out that the plural or singular form of the word is the best suggestion since what is stored is simply "citi". We have to take grammar into account. As a conclusion, stemming will only be considered if we get enough time.
+__Hyphenation__: Hyphenation happens when words are cut in the middle to achieve correct line alignment. The number of hyphens appearing in the end of lines is 0. So this doesn't happen in the data sets we are treating.
 
-### Hyphenation
+__Eszett or double-s__: In German, the letter 'ß' can also sometimes be written 'ss', especially when the 'ß' letter is not available. However, words written both ways don't always have the same meaning. So "bußen" and "bussen" are not the same words. In order to keep this possible difference of meaning, words written with 'ß' or 'ss' are kept separate, even if that means that the word gets a lower ranking than it should because of substitutions. 
 
-Hyphenation happens when words are cut in the middle to achieve correct line alignment. The number of hyphens appearing in the end of lines is 0. So this doesn't happen in the data sets we are treating.
-
-### Eszett or double-s (German language)
-
-In German, the letter 'ß' can also sometimes be written 'ss', especially when the 'ß' letter is not available. However, words written both ways don't always have the same meaning. So "bußen" and "bussen" are not the same words. In order to keep this possible difference of meaning, words written with 'ß' or 'ss' are kept separate, even if that means that the word gets a lower ranking than it should because of substitutions. 
-
-### Abbreviations
-
-Actually, abbreviations do not seem to be a problem in this use case. As long as they are used frequently enough, they are valid candidates for prediction.
+__Abbreviations__: Actually, abbreviations do not seem to be a problem in this use case. As long as they are used frequently enough, they are valid candidates for prediction.
 
 ## Conclusion and final filtering
 
@@ -212,7 +205,6 @@ the_freq <- 296140
 
 At the moment, we'll keep only the words that occur at least 3 times. This gives a memory footprint of 3Mb, which would make 12Mb with the 3 next word suggestions. It's remarkable that the top 100 words in the list mostly contains words in the dictionary. "aardvark" appears at the `r aardvark_position`th position in alphabetical order after multiple variations around "aahhh" (among others) and is present `r format(aardvark_freq)` times in the 10% sample that was used. The word "the" is the most frequent word in the set and it occurs `r format(the_freq)` times.
 
-
 # Plans for building the application
 
 The application needs to provide the best suggestion of 3 words that follow the last words a user typed. I plan to have a simple user interface with a text field in which the user can type some text. After he types a word and presses the space bar, a popup would appear to suggest the 3 most frequent words. Then the user can either continue to type or he can select one of the 3 options in the popup. In this last case, the word would be automatically added to the text. If the field is blank, we could also suggest the 3 most frequent words learned from the corpus.
@@ -221,19 +213,7 @@ If for some reason I cannot use that popup box, plan B would be to have a button
 
 In order to build this application, I need to go further into the frequency analysis of the words in the corpus. At the moment, I only analyzed the frequency of words without taking the following ones into account. The next step is to consider pairs of words instead of isolated words. For example, I could calculate the frequency of entries such as "the end" or "last train". "the last train" would be divided into "the last" and "last train". After that, we could go on with analyzing the frequency of larger series of words (series of 3 words, 4 words and so on...).
 
-During application execution, it's important to find quickly the entries that starts with the last words the user typed. This can be done by creating a hash tables with the entries we just computed. In the case of word pairs entries, the key of the hash table would be the first word and the values would be the 3 second words with highest frequency for that key. 
-
-Example 1: if we have "the city", "the best", "the same", "the first" with respective frequencies 1, 5, 3 and 4, we would have the entry "the" associated with values ["best", "same", "first"] in the hash table. The pair "the city" would be dropped.
-
-Example 2: Let's assume we kept the following pairs: "the train", "the car", "the guy", "my wife", "my poney" and "my children". Then the hash table would contain 2 entries. The first entry would be "the" associated with value ["train, "car, "guy"] and the second entry would be "my" associated with value ["wife", "poney", "children"]. 
-
-In the case of 3 words series, we would have 2 levels of hash tables instead of 1 and the last level would contain the 3 suggestions. In the case of 4 words series, we would have 3 levels of hash tables and the last level would contain the 3 suggestions. If we generalize with series of n words, we would have n - 1 levels of hash tables and the last level would contain the 3 suggestions.
-
-Example 3: the first level contains a hash table in which the key is the first word of the triplets and the values are second level hash tables. The second level hash tables have 2nd words of triplets as key and the 3rd words of the 3 series with highest frequency (starting with the keys of parent and current hash table) as values.
-
-This should enable very fast lookup of the suggestions in the application by looking for the last words the user typed in the keys of the hash tables. The suggestions to show would be the corresponding values. 
-
-In the case the user types n words and either we don't have analyzed series of n words or there is no such entry in that analysis, we fall back by looking into the (n-1) words analysis using the last (n-1) words until we find something we can predict. The level 0 (0 words) just shows the 3 most frequent words found in the corpus.
+During application execution, it's important to find quickly the entries that starts with the last words the user typed. I will take extra care into choosing efficient data structures to quickly find the suggestions.
 
 # References and resources
 
